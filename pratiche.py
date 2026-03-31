@@ -963,6 +963,157 @@ class VistaLista(ctk.CTkFrame):
         if sel: self._on_select(sel[0])
 
 # ─────────────────────────────────────────────
+#  CALENDARIO POPUP
+# ─────────────────────────────────────────────
+class CalendarioPopup(ctk.CTkToplevel):
+    """Piccolo calendario per selezionare una data."""
+    def __init__(self, parent, data_var: ctk.StringVar, anchor_widget):
+        super().__init__(parent)
+        T_ = T()
+        self.overrideredirect(True)   # niente bordi finestra
+        self.configure(fg_color=T_["card"])
+        self._data_var = data_var
+        self._build()
+        # Posiziona vicino al widget di ancoraggio
+        self.update_idletasks()
+        x = anchor_widget.winfo_rootx()
+        y = anchor_widget.winfo_rooty() + anchor_widget.winfo_height() + 2
+        self.geometry(f"+{x}+{y}")
+        self.lift()
+        self.focus_force()
+        self.bind("<FocusOut>", lambda e: self.after(100, self._check_focus))
+
+    def _check_focus(self):
+        try:
+            if not self.focus_get():
+                self.destroy()
+        except Exception:
+            self.destroy()
+
+    def _build(self):
+        T_ = T()
+        oggi = date.today()
+        # Usa la data corrente nel campo se valida, altrimenti oggi
+        try:
+            self._current = datetime.strptime(
+                self._data_var.get().strip(), "%d/%m/%Y").date()
+        except Exception:
+            self._current = oggi
+
+        self._anno  = self._current.year
+        self._mese  = self._current.month
+        self._render()
+
+    def _render(self):
+        T_ = T()
+        for w in self.winfo_children():
+            w.destroy()
+
+        # Bordo esterno
+        outer = ctk.CTkFrame(self, fg_color=T_["card"], corner_radius=10,
+                             border_color=T_["bordo"], border_width=1)
+        outer.pack(padx=2, pady=2)
+
+        # Header mese/anno
+        hdr = ctk.CTkFrame(outer, fg_color=T_["blu_scuro"], corner_radius=8)
+        hdr.pack(fill="x", padx=6, pady=(6,4))
+
+        ctk.CTkButton(hdr, text="◀", width=28, height=26,
+                      fg_color="transparent", hover_color=T_["blu_medio"],
+                      text_color="white", font=ctk.CTkFont(size=12),
+                      command=self._mese_prec).pack(side="left", padx=2)
+
+        import calendar
+        nome_mese = ["","Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno",
+                     "Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"]
+        ctk.CTkLabel(hdr, text=f"{nome_mese[self._mese]} {self._anno}",
+                     font=ctk.CTkFont(size=12, weight="bold"),
+                     text_color="white").pack(side="left", expand=True)
+
+        ctk.CTkButton(hdr, text="▶", width=28, height=26,
+                      fg_color="transparent", hover_color=T_["blu_medio"],
+                      text_color="white", font=ctk.CTkFont(size=12),
+                      command=self._mese_succ).pack(side="right", padx=2)
+
+        # Giorni settimana
+        giorni_hdr = ctk.CTkFrame(outer, fg_color="transparent")
+        giorni_hdr.pack(padx=6)
+        for g in ["Lu","Ma","Me","Gi","Ve","Sa","Do"]:
+            ctk.CTkLabel(giorni_hdr, text=g, width=32, height=22,
+                         font=ctk.CTkFont(size=10),
+                         text_color=T_["testo_light"]).pack(side="left")
+
+        # Griglia giorni
+        griglia = ctk.CTkFrame(outer, fg_color="transparent")
+        griglia.pack(padx=6, pady=(0,6))
+
+        import calendar as cal
+        primo_giorno, num_giorni = cal.monthrange(self._anno, self._mese)
+        oggi = date.today()
+
+        # Celle vuote prima del primo giorno
+        riga = ctk.CTkFrame(griglia, fg_color="transparent")
+        riga.pack()
+        for _ in range(primo_giorno):
+            ctk.CTkLabel(riga, text="", width=32, height=28).pack(side="left")
+
+        col = primo_giorno
+        for giorno in range(1, num_giorni + 1):
+            d = date(self._anno, self._mese, giorno)
+            is_oggi     = d == oggi
+            is_selected = d == self._current
+
+            if is_selected:
+                fg = T_["blu_medio"]; tc = "white"
+            elif is_oggi:
+                fg = T_["blu_chiaro"] if "blu_chiaro" in T_ else "#D6E4F0"; tc = T_["blu_scuro"]
+            elif d.weekday() >= 5:
+                fg = "transparent"; tc = T_["arancio"]
+            else:
+                fg = "transparent"; tc = T_["testo"]
+
+            btn = ctk.CTkButton(riga, text=str(giorno),
+                                width=32, height=28,
+                                fg_color=fg,
+                                hover_color=T_["blu_chiaro"] if "blu_chiaro" in T_ else "#D6E4F0",
+                                text_color=tc,
+                                corner_radius=6,
+                                font=ctk.CTkFont(size=11),
+                                command=lambda d=d: self._seleziona(d))
+            btn.pack(side="left")
+            col += 1
+            if col % 7 == 0:
+                riga = ctk.CTkFrame(griglia, fg_color="transparent")
+                riga.pack()
+
+        # Bottone Oggi
+        ctk.CTkButton(outer, text="Oggi",
+                      command=lambda: self._seleziona(date.today()),
+                      fg_color=T_["sfondo"], hover_color=T_["blu_medio"],
+                      text_color=T_["testo_light"], height=24,
+                      corner_radius=6, font=ctk.CTkFont(size=10)
+                      ).pack(fill="x", padx=6, pady=(0,6))
+
+    def _mese_prec(self):
+        if self._mese == 1:
+            self._mese = 12; self._anno -= 1
+        else:
+            self._mese -= 1
+        self._render()
+
+    def _mese_succ(self):
+        if self._mese == 12:
+            self._mese = 1; self._anno += 1
+        else:
+            self._mese += 1
+        self._render()
+
+    def _seleziona(self, d: date):
+        self._data_var.set(d.strftime("%d/%m/%Y"))
+        self.destroy()
+
+
+# ─────────────────────────────────────────────
 #  FINESTRA TRAINANTE (affiancata)
 # ─────────────────────────────────────────────
 class FinestraTrainante(ctk.CTkToplevel):
@@ -1088,14 +1239,14 @@ class FinestraTrainante(ctk.CTkToplevel):
 #  VISTA SCHEDA
 # ─────────────────────────────────────────────
 class VistaScheda(ctk.CTkFrame):
-    def __init__(self, parent, get_path, vai_lista, **kw):
+    def __init__(self, parent, get_path, vai_lista, appuntamento_var=None, **kw):
         T_ = T()
         super().__init__(parent, fg_color=T_["sfondo"], corner_radius=0, **kw)
         self._get_path  = get_path
         self._vai_lista = vai_lista
         self._nr = None; self._stato_var = None; self._stato_menu = None
         self._pratica_corrente = None; self._att_corrente = None
-        self._appuntamento_var = None
+        self._appuntamento_var = appuntamento_var  # variabile persistente dall'App
         self._finestra_trainante = None
         self._build()
 
@@ -1118,7 +1269,9 @@ class VistaScheda(ctk.CTkFrame):
         ctk.CTkLabel(nav, text="📅 Appuntamento:",
                      font=ctk.CTkFont(size=FS()),
                      text_color=T_["testo_light"]).pack(side="right", padx=(0,4))
-        self._appuntamento_var = ctk.StringVar(value="")
+        # Usa la variabile persistente dell'App se disponibile
+        if not self._appuntamento_var:
+            self._appuntamento_var = ctk.StringVar(value="")
         self._appuntamento_entry = ctk.CTkEntry(nav,
                                                 textvariable=self._appuntamento_var,
                                                 placeholder_text="GG/MM/AAAA",
@@ -1128,6 +1281,16 @@ class VistaScheda(ctk.CTkFrame):
                                                 corner_radius=6,
                                                 font=ctk.CTkFont(size=FS()))
         self._appuntamento_entry.pack(side="right", padx=(0,4))
+
+        # Bottone calendario
+        ctk.CTkButton(nav, text="🗓",
+                      command=lambda: CalendarioPopup(
+                          self, self._appuntamento_var, self._appuntamento_entry),
+                      fg_color=T_["blu_medio"], hover_color=T_["blu_scuro"],
+                      width=30, height=28, corner_radius=6,
+                      font=ctk.CTkFont(size=13)).pack(side="right", padx=(0,2))
+
+        # Bottone salva
         ctk.CTkButton(nav, text="💾",
                       command=self._salva_appuntamento,
                       fg_color=T_["verde"], hover_color=T_["verde_dark"],
@@ -1159,9 +1322,11 @@ class VistaScheda(ctk.CTkFrame):
         self._att_corrente     = att
         nome = f"{pratica.get('Cognome','')} {pratica.get('Nome','')}".strip()
         self.lbl_breadcrumb.configure(text=f"{nr}  —  {nome}")
-        # Carica data appuntamento esistente
+        # Carica data appuntamento dalla pratica SOLO se il campo è vuoto
         if self._appuntamento_var:
-            self._appuntamento_var.set(str(pratica.get("Data Appuntamento","") or ""))
+            data_pratica = str(pratica.get("Data Appuntamento","") or "")
+            if not self._appuntamento_var.get().strip() and data_pratica:
+                self._appuntamento_var.set(data_pratica)
         self._render_scheda(pratica, att)
         self._render_attivita(nr, att)
 
@@ -1480,7 +1645,8 @@ class App(ctk.CTk):
         self.title(f"{APP_NOME}  —  {OPERATORE}")
         self.geometry("1200x740")
         self.minsize(900, 580)
-        self._excel_path = ctk.StringVar(value=EXCEL_PATH_DEFAULT)
+        self._excel_path      = ctk.StringVar(value=EXCEL_PATH_DEFAULT)
+        self._appuntamento_var = ctk.StringVar(value="")  # persiste tra estrazioni
         self._server     = None
         self._banner     = None
         self._build()
@@ -1550,7 +1716,8 @@ class App(ctk.CTk):
                                         on_select=self._apri_pratica)
         self._vista_scheda = VistaScheda(self._container,
                                          get_path=self._excel_path.get,
-                                         vai_lista=self._mostra_lista)
+                                         vai_lista=self._mostra_lista,
+                                         appuntamento_var=self._appuntamento_var)
 
     def _font_up(self):
         SETTINGS["font_size"] = min(16, SETTINGS.get("font_size",12)+1)
@@ -1563,11 +1730,13 @@ class App(ctk.CTk):
     def _ricostruisci(self):
         """Ricostruisce l'interfaccia con il nuovo tema/font."""
         self._applica_tema()
-        nr_corrente = self._vista_scheda._nr
-        in_scheda   = self._vista_scheda.winfo_ismapped()
+        nr_corrente  = self._vista_scheda._nr
+        in_scheda    = self._vista_scheda.winfo_ismapped()
+        data_app     = self._appuntamento_var.get()  # preserva data
         for w in self.winfo_children(): w.destroy()
         self._banner = None
         self._build()
+        self._appuntamento_var.set(data_app)          # ripristina data
         self._avvia_server()
         if in_scheda and nr_corrente:
             self._apri_pratica(nr_corrente)
