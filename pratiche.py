@@ -16,7 +16,6 @@ import re
 import os
 from datetime import datetime, date, timedelta
 from selenium import webdriver
-from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException
 import openpyxl
@@ -34,6 +33,7 @@ except Exception:
     OPERATORE = os.environ.get("USERNAME", "OPERATORE")
 
 EXCEL_PATH_DEFAULT = f"pratiche_{OPERATORE}.xlsx"
+BROWSER_DEFAULT    = "edge"   # "firefox" | "chrome" | "edge"
 
 COL_PRATICHE = [
     "Nr. Pratica", "Operatore Gestionale", "Stato Pratica",
@@ -206,11 +206,26 @@ def salva_attivita_excel(path: str, dati: dict):
 #  LOGICA SELENIUM
 # ─────────────────────────────────────────────
 class GestionaleDriver:
-    def __init__(self):
-        self.driver = None
+    def __init__(self, browser="firefox"):
+        self.driver  = None
+        self.browser = browser  # "firefox" | "chrome" | "edge"
 
     def apri(self):
-        self.driver = webdriver.Firefox(options=Options())
+        if self.browser == "chrome":
+            from selenium.webdriver.chrome.options import Options as COptions
+            from selenium.webdriver import Chrome
+            opts = COptions()
+            self.driver = Chrome(options=opts)
+        elif self.browser == "edge":
+            from selenium.webdriver.edge.options import Options as EOptions
+            from selenium.webdriver import Edge
+            opts = EOptions()
+            self.driver = Edge(options=opts)
+        else:
+            from selenium.webdriver.firefox.options import Options as FOptions
+            from selenium.webdriver import Firefox
+            opts = FOptions()
+            self.driver = Firefox(options=opts)
         try:
             self.driver.get(GESTIONALE_URL)
         except Exception:
@@ -436,52 +451,115 @@ class VistaLista(ctk.CTkFrame):
         self._build()
 
     def _build(self):
-        # Barra filtri
-        bar = ctk.CTkFrame(self, fg_color=THEME["card"],
-                           corner_radius=0, height=52)
-        bar.pack(fill="x")
-        bar.pack_propagate(False)
+        # ── Riga 1: titolo + ricerca + aggiorna ──
+        bar1 = ctk.CTkFrame(self, fg_color=THEME["card"],
+                            corner_radius=0, height=48)
+        bar1.pack(fill="x")
+        bar1.pack_propagate(False)
 
-        ctk.CTkLabel(bar, text="Lista Pratiche",
+        ctk.CTkLabel(bar1, text="Lista Pratiche",
                      font=ctk.CTkFont(size=13, weight="bold"),
                      text_color=THEME["blu_scuro"]
                      ).pack(side="left", padx=14)
 
-        # Filtro stato
-        stati_opzioni = ["Tutti gli stati"] + [STATI[k][0] for k in STATI]
-        self._stato_var = ctk.StringVar(value="Tutti gli stati")
-        ctk.CTkOptionMenu(bar,
-                          variable=self._stato_var,
-                          values=stati_opzioni,
-                          fg_color=THEME["sfondo"],
-                          button_color=THEME["blu_medio"],
-                          text_color=THEME["testo"],
-                          font=ctk.CTkFont(size=11),
-                          width=165, height=30, corner_radius=8,
-                          command=lambda v: self._filtra()
-                          ).pack(side="left", padx=(0,8))
-
-        # Ricerca testo
         self._search_var = ctk.StringVar()
         self._search_var.trace_add("write", lambda *a: self._filtra())
-        ctk.CTkEntry(bar, textvariable=self._search_var,
-                     placeholder_text="🔍  Cerca nome, CUI, nr...",
+        ctk.CTkEntry(bar1, textvariable=self._search_var,
+                     placeholder_text="🔍  Cerca nome, cognome, CUI, nr...",
                      fg_color=THEME["sfondo"], border_color=THEME["bordo"],
-                     height=30, width=220, corner_radius=8,
+                     height=30, width=260, corner_radius=8,
                      font=ctk.CTkFont(size=11)
                      ).pack(side="left", padx=(0,8))
 
-        ctk.CTkButton(bar, text="↻  Aggiorna",
+        ctk.CTkButton(bar1, text="✕ Cancella",
+                      command=lambda: self._search_var.set(""),
+                      fg_color=THEME["bordo"], text_color=THEME["testo_light"],
+                      hover_color="#CBD5E1",
+                      height=30, width=80, corner_radius=8,
+                      font=ctk.CTkFont(size=11)
+                      ).pack(side="left", padx=(0,8))
+
+        ctk.CTkButton(bar1, text="↻  Aggiorna",
                       command=self.carica,
                       fg_color=THEME["blu_medio"], hover_color=THEME["blu_scuro"],
                       height=30, width=90, corner_radius=8,
                       font=ctk.CTkFont(size=11)
                       ).pack(side="left")
 
-        self.lbl_count = ctk.CTkLabel(bar, text="",
+        self.lbl_count = ctk.CTkLabel(bar1, text="",
                                       font=ctk.CTkFont(size=11),
                                       text_color=THEME["testo_light"])
         self.lbl_count.pack(side="right", padx=14)
+
+        # ── Riga 2: filtri ──
+        bar2 = ctk.CTkFrame(self, fg_color=THEME["sfondo"],
+                            corner_radius=0, height=38)
+        bar2.pack(fill="x")
+        bar2.pack_propagate(False)
+
+        ctk.CTkLabel(bar2, text="Filtri:",
+                     font=ctk.CTkFont(size=11),
+                     text_color=THEME["testo_light"]
+                     ).pack(side="left", padx=(14,6), pady=4)
+
+        # Filtro stato
+        stati_opzioni = ["Tutti gli stati"] + [STATI[k][0] for k in STATI]
+        self._stato_var = ctk.StringVar(value="Tutti gli stati")
+        ctk.CTkOptionMenu(bar2,
+                          variable=self._stato_var,
+                          values=stati_opzioni,
+                          fg_color=THEME["card"],
+                          button_color=THEME["blu_medio"],
+                          text_color=THEME["testo"],
+                          font=ctk.CTkFont(size=11),
+                          width=160, height=28, corner_radius=8,
+                          command=lambda v: self._filtra()
+                          ).pack(side="left", padx=(0,8))
+
+        # Filtro operatore
+        ctk.CTkLabel(bar2, text="Operatore:",
+                     font=ctk.CTkFont(size=11),
+                     text_color=THEME["testo_light"]
+                     ).pack(side="left", padx=(0,4))
+        self._op_var = ctk.StringVar(value="Tutti")
+        self._op_menu = ctk.CTkOptionMenu(bar2,
+                          variable=self._op_var,
+                          values=["Tutti"],
+                          fg_color=THEME["card"],
+                          button_color=THEME["blu_medio"],
+                          text_color=THEME["testo"],
+                          font=ctk.CTkFont(size=11),
+                          width=140, height=28, corner_radius=8,
+                          command=lambda v: self._filtra()
+                          )
+        self._op_menu.pack(side="left", padx=(0,8))
+
+        # Filtro scadenza entro
+        ctk.CTkLabel(bar2, text="Scadenza entro:",
+                     font=ctk.CTkFont(size=11),
+                     text_color=THEME["testo_light"]
+                     ).pack(side="left", padx=(0,4))
+        self._scad_var = ctk.StringVar(value="Tutte")
+        ctk.CTkOptionMenu(bar2,
+                          variable=self._scad_var,
+                          values=["Tutte","30 giorni","60 giorni","90 giorni","6 mesi"],
+                          fg_color=THEME["card"],
+                          button_color=THEME["blu_medio"],
+                          text_color=THEME["testo"],
+                          font=ctk.CTkFont(size=11),
+                          width=110, height=28, corner_radius=8,
+                          command=lambda v: self._filtra()
+                          ).pack(side="left", padx=(0,8))
+
+        # Reset filtri
+        ctk.CTkButton(bar2, text="↺ Reset filtri",
+                      command=self._reset_filtri,
+                      fg_color="transparent",
+                      text_color=THEME["blu_medio"],
+                      hover_color=THEME["sfondo"],
+                      height=28, corner_radius=8,
+                      font=ctk.CTkFont(size=11)
+                      ).pack(side="left")
 
         # Tabella
         frame = tk.Frame(self, bg=THEME["sfondo"])
@@ -551,23 +629,59 @@ class VistaLista(ctk.CTkFrame):
         path = self._get_path()
         self._pratiche = leggi_pratiche(path)
         self._stati    = leggi_tutti_stati(path)
+        # Popola menu operatori
+        operatori = sorted(set(
+            str(p.get("Estratto Da","") or "").strip()
+            for p in self._pratiche
+            if p.get("Estratto Da")
+        ))
+        self._op_menu.configure(values=["Tutti"] + operatori)
+        self._filtra()
+
+    def _reset_filtri(self):
+        self._stato_var.set("Tutti gli stati")
+        self._op_var.set("Tutti")
+        self._scad_var.set("Tutte")
+        self._search_var.set("")
         self._filtra()
 
     def _filtra(self):
         q      = self._search_var.get().lower()
-        filtro = self._stato_var.get()
         esiti  = {STATI[k][0]: k for k in STATI}
-        fkey   = esiti.get(filtro, "tutte")
+        fkey   = esiti.get(self._stato_var.get(), "tutte")
+        fop    = self._op_var.get()
+        fscad  = self._scad_var.get()
+        oggi   = date.today()
+
+        # Mappa scadenza → giorni
+        scad_giorni = {
+            "30 giorni": 30, "60 giorni": 60,
+            "90 giorni": 90, "6 mesi": 180,
+        }
 
         out = []
         for p in self._pratiche:
+            # Ricerca testo
             if q and not any(q in str(p.get(c,"")).lower()
                              for c in ["Cognome","Nome","CUI","Nr. Pratica","Cittadinanza"]):
                 continue
             nr    = str(p.get("Nr. Pratica","")).strip()
             stato = self._stati.get(nr, "da_verificare")
+            # Filtro stato
             if fkey != "tutte" and stato != fkey:
                 continue
+            # Filtro operatore
+            if fop != "Tutti" and str(p.get("Estratto Da","")).strip() != fop:
+                continue
+            # Filtro scadenza
+            if fscad in scad_giorni:
+                scad_str = str(p.get("Scadenza Rinnovo",""))
+                try:
+                    scad_date = datetime.strptime(scad_str, "%d/%m/%Y").date()
+                    if not (oggi <= scad_date <= oggi + timedelta(days=scad_giorni[fscad])):
+                        continue
+                except Exception:
+                    continue
             out.append((p, stato))
 
         # Ordina
@@ -1046,12 +1160,23 @@ class VistaScheda(ctk.CTkFrame):
 class _BarraEstrazioneInline(ctk.CTkFrame):
     def __init__(self, parent, get_path, on_salvata, driver, **kw):
         super().__init__(parent, fg_color="transparent", **kw)
-        self._get_path  = get_path
+        self._get_path   = get_path
         self._on_salvata = on_salvata
-        self._driver    = driver
+        self._driver     = driver
+        self._browser_var = ctk.StringVar(value=BROWSER_DEFAULT)
         self._build()
 
     def _build(self):
+        # Selettore browser
+        self._browser_menu = ctk.CTkOptionMenu(
+            self, variable=self._browser_var,
+            values=["firefox", "chrome", "edge"],
+            fg_color="#1a3f63", button_color=THEME["blu_medio"],
+            text_color="white", font=ctk.CTkFont(size=10),
+            width=85, height=30, corner_radius=6,
+            command=self._cambia_browser)
+        self._browser_menu.pack(side="left", padx=(0,6))
+
         self.btn_apri = ctk.CTkButton(self, text="🌐  Browser",
                                       command=self._apri,
                                       fg_color=THEME["blu_medio"],
@@ -1091,8 +1216,13 @@ class _BarraEstrazioneInline(ctk.CTkFrame):
                                         state="disabled")
         self.btn_estrai.pack(side="left")
 
+    def _cambia_browser(self, browser: str):
+        self._driver.browser = browser
+
     def _apri(self):
+        self._driver.browser = self._browser_var.get()
         self.btn_apri.configure(state="disabled", text="⏳...")
+        self._browser_menu.configure(state="disabled")
         threading.Thread(target=self._t_apri, daemon=True).start()
 
     def _t_apri(self):
@@ -1110,10 +1240,14 @@ class _BarraEstrazioneInline(ctk.CTkFrame):
             self.btn_estrai.configure(state="normal")
             self._url_entry.configure(state="normal")
             self.btn_vai.configure(state="normal")
+            self._browser_menu.configure(state="disabled")
         else:
             self.btn_apri.configure(state="normal", text="🌐  Browser",
                                     fg_color=THEME["blu_medio"])
-            messagebox.showerror("Errore", f"Impossibile aprire Firefox:\n{err}")
+            self._browser_menu.configure(state="normal")
+            messagebox.showerror("Errore",
+                f"Impossibile aprire il browser ({self._browser_var.get()}):\n{err}\n\n"
+                f"Assicurati che il browser sia installato.")
 
     def _chiudi(self):
         self._driver.quit()
@@ -1124,6 +1258,7 @@ class _BarraEstrazioneInline(ctk.CTkFrame):
         self.btn_estrai.configure(state="disabled")
         self._url_entry.configure(state="disabled")
         self.btn_vai.configure(state="disabled")
+        self._browser_menu.configure(state="normal")
 
     def _vai_url(self):
         url = self._url_var.get().strip()
