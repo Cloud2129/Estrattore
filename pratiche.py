@@ -68,7 +68,7 @@ COL_PRATICHE = [
     "Comune", "Indirizzo", "Motivo Soggiorno",
     "Coniuge", "Referenze", "Note Gestionale",
     "Data Presentazione", "Scadenza Rinnovo",
-    "Estratto Da", "Data Estrazione",
+    "Estratto Da", "Data Estrazione", "Data Appuntamento",
 ]
 
 COL_ATTIVITA = [
@@ -137,7 +137,7 @@ TEMI = {
 }
 
 def T() -> dict:
-    return TEMI[SETTINGS.get("tema","light")]
+    return TEMI["light"]
 
 def FS(delta=0) -> int:
     return max(9, min(16, SETTINGS.get("font_size", 12) + delta))
@@ -693,6 +693,7 @@ class VistaLista(ctk.CTkFrame):
         ("CUI",            "CUI",              85),
         ("Stato",          "_stato",          145),
         ("Data Estrazione","Data Estrazione", 130),
+        ("Appuntamento",   "Data Appuntamento", 110),
     ]
 
     def __init__(self, parent, get_path, on_select, **kw):
@@ -764,6 +765,13 @@ class VistaLista(ctk.CTkFrame):
                       fg_color="transparent", text_color=T_["blu_medio"],
                       hover_color=T_["sfondo"], height=26, corner_radius=8,
                       font=ctk.CTkFont(size=FS())).pack(side="left")
+
+        # ── Barra grafico stati ──
+        self._bar_stati = ctk.CTkFrame(self, fg_color=T_["sfondo"],
+                                       corner_radius=0, height=58)
+        self._bar_stati.pack(fill="x", pady=(2,0))
+        self._bar_stati.pack_propagate(False)
+        # I widget vengono creati da _aggiorna_grafico_stati()
 
         frame = tk.Frame(self, bg=T_["sfondo"])
         frame.pack(fill="both", expand=True)
@@ -859,9 +867,78 @@ class VistaLista(ctk.CTkFrame):
         out.sort(key=sk, reverse=not self._sort_asc)
         self._render(out)
 
+    def _aggiorna_grafico_stati(self, righe):
+        """Mostra card colorate con conteggio per stato."""
+        T_ = T()
+        for w in self._bar_stati.winfo_children():
+            w.destroy()
+        # Conta per stato
+        conteggi = {k: 0 for k in STATI}
+        for p, stato in righe:
+            if stato in conteggi:
+                conteggi[stato] += 1
+        totale = len(righe)
+
+        # Barra proporzionale
+        bar_w = ctk.CTkFrame(self._bar_stati, fg_color="transparent")
+        bar_w.pack(fill="x", padx=10, pady=(6,2))
+
+        for stato_key, (label, bg_hex, fg_hex) in STATI.items():
+            n = conteggi[stato_key]
+            # Card cliccabile
+            card = ctk.CTkFrame(bar_w,
+                                fg_color=bg_hex,
+                                corner_radius=8,
+                                cursor="hand2")
+            card.pack(side="left", padx=3, pady=0, expand=True, fill="x")
+            # Numero grande
+            ctk.CTkLabel(card,
+                         text=str(n),
+                         font=ctk.CTkFont(size=16, weight="bold"),
+                         text_color=fg_hex,
+                         fg_color="transparent"
+                         ).pack(side="left", padx=(10,4), pady=4)
+            # Etichetta
+            lbl_short = label.split(" ",1)[1] if " " in label else label
+            ctk.CTkLabel(card,
+                         text=lbl_short,
+                         font=ctk.CTkFont(size=10),
+                         text_color=fg_hex,
+                         fg_color="transparent"
+                         ).pack(side="left", padx=(0,8), pady=4)
+            # Click → filtra per quello stato
+            for w in [card] + list(card.winfo_children()):
+                w.bind("<Button-1>", lambda e, sk=stato_key: self._filtra_per_stato(sk))
+
+        # Barra colorata proporzionale in fondo
+        if totale > 0:
+            barra = ctk.CTkFrame(self._bar_stati, fg_color=T_["bordo"],
+                                 corner_radius=4, height=6)
+            barra.pack(fill="x", padx=10, pady=(0,4))
+            barra.update_idletasks()
+            bw = barra.winfo_width() or 400
+            x = 0
+            for stato_key, (_, bg_hex, fg_hex) in STATI.items():
+                n = conteggi[stato_key]
+                if n == 0: continue
+                w_seg = int(bw * n / totale)
+                seg = tk.Frame(barra, bg=fg_hex, height=6, width=w_seg)
+                seg.place(x=x, y=0)
+                x += w_seg
+
+    def _filtra_per_stato(self, stato_key: str):
+        """Filtra la lista per lo stato cliccato (toggle)."""
+        etichetta = STATI[stato_key][0]
+        if self._stato_var.get() == etichetta:
+            self._stato_var.set("Tutti gli stati")
+        else:
+            self._stato_var.set(etichetta)
+        self._filtra()
+
     def _render(self, righe):
         self.tree.delete(*self.tree.get_children())
         self.lbl_count.configure(text=f"{len(righe)} pratiche")
+        self._aggiorna_grafico_stati(righe)
         for i,(p,stato) in enumerate(righe):
             nr = str(p.get("Nr. Pratica",""))
             valori = (nr,
@@ -871,7 +948,8 @@ class VistaLista(ctk.CTkFrame):
                       str(p.get("Cittadinanza","") or p.get("Nazione Nascita","") or ""),
                       str(p.get("CUI","") or ""),
                       STATI.get(stato, STATI["da_verificare"])[0],
-                      str(p.get("Data Estrazione","") or ""))
+                      str(p.get("Data Estrazione","") or ""),
+                      str(p.get("Data Appuntamento","") or ""))
             tag = stato if stato in STATI else ("alt" if i%2 else "")
             self.tree.insert("","end", iid=nr, values=valori, tags=(tag,))
 
@@ -885,6 +963,128 @@ class VistaLista(ctk.CTkFrame):
         if sel: self._on_select(sel[0])
 
 # ─────────────────────────────────────────────
+#  FINESTRA TRAINANTE (affiancata)
+# ─────────────────────────────────────────────
+class FinestraTrainante(ctk.CTkToplevel):
+    def __init__(self, parent, nr_trainante: str, get_path):
+        super().__init__(parent)
+        T_ = T()
+        self.title(f"Pratica Trainante — {nr_trainante}")
+        self.geometry("680x700")
+        self.configure(fg_color=T_["sfondo"])
+        self.lift()
+        self._get_path    = get_path
+        self._nr          = nr_trainante
+        self._stato_var   = None
+        self._stato_menu  = None
+        self._appuntamento_var = ctk.StringVar(value="")
+        self._build(nr_trainante)
+
+    def _build(self, nr):
+        T_ = T()
+        pratiche = leggi_pratiche(self._get_path())
+        pratica  = next((p for p in pratiche
+                         if str(p.get("Nr. Pratica","")).strip() == nr), None)
+        if not pratica:
+            ctk.CTkLabel(self,
+                         text=f"Pratica {nr} non trovata. Estraila dal gestionale.",
+                         font=ctk.CTkFont(size=13),
+                         text_color=T_["arancio"],
+                         justify="center").pack(expand=True)
+            return
+
+        att = leggi_attivita(self._get_path(), nr)
+        pratica["Stato"] = att.get("Stato","da_verificare") or "da_verificare"
+
+        # Header
+        hdr = ctk.CTkFrame(self, fg_color=T_["blu_scuro"],
+                           corner_radius=0, height=52)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
+        nome = f"{pratica.get('Cognome','')} {pratica.get('Nome','')}".strip()
+        ctk.CTkLabel(hdr, text=f"  🔗  Trainante: {nome}",
+                     font=ctk.CTkFont(size=13, weight="bold"),
+                     text_color="white").pack(side="left", padx=14)
+        ctk.CTkLabel(hdr, text=nr,
+                     font=ctk.CTkFont(family="Consolas", size=12),
+                     text_color="#93C5FD").pack(side="right", padx=14)
+
+        scroll = ctk.CTkScrollableFrame(self, fg_color=T_["sfondo"], corner_radius=0)
+        scroll.pack(fill="both", expand=True, padx=12, pady=10)
+
+        # Nr + Stato
+        nr_card = ctk.CTkFrame(scroll, fg_color=T_["card"], corner_radius=10,
+                               border_color=T_["bordo"], border_width=1)
+        nr_card.pack(fill="x", pady=(0,8))
+        ni = ctk.CTkFrame(nr_card, fg_color="transparent")
+        ni.pack(fill="x", padx=14, pady=10)
+        ctk.CTkLabel(ni, text="Nr. Pratica", font=ctk.CTkFont(size=10),
+                     text_color=T_["testo_light"]).pack(anchor="w")
+        ctk.CTkLabel(ni, text=nr,
+                     font=ctk.CTkFont(family="Consolas", size=20, weight="bold"),
+                     text_color=T_["blu_scuro"]).pack(anchor="w")
+        stato_key  = str(pratica.get("Stato","da_verificare") or "da_verificare")
+        info_stato = STATI.get(stato_key, STATI["da_verificare"])
+        ctk.CTkLabel(ni, text=info_stato[0],
+                     font=ctk.CTkFont(size=11, weight="bold"),
+                     text_color=info_stato[2],
+                     fg_color=info_stato[1],
+                     corner_radius=16).pack(anchor="w", pady=(6,0))
+
+        # Anagrafica compatta
+        ana = ctk.CTkFrame(scroll, fg_color=T_["card"], corner_radius=10,
+                           border_color=T_["bordo"], border_width=1)
+        ana.pack(fill="x", pady=(0,8))
+        ctk.CTkLabel(ana, text="👤  Anagrafica",
+                     font=ctk.CTkFont(size=11, weight="bold"),
+                     text_color=T_["blu_scuro"]).pack(anchor="w", padx=14, pady=(10,4))
+        ctk.CTkFrame(ana, fg_color=T_["bordo"], height=1, corner_radius=0
+                     ).pack(fill="x", padx=14, pady=(0,8))
+
+        campi = [
+            ("Cognome",         pratica.get("Cognome")),
+            ("Nome",            pratica.get("Nome")),
+            ("CUI",             pratica.get("CUI")),
+            ("Codice Fiscale",  pratica.get("Codice Fiscale")),
+            ("Data Nascita",    pratica.get("Data Nascita")),
+            ("Cittadinanza",    pratica.get("Cittadinanza")),
+            ("Telefono",        pratica.get("Telefono")),
+            ("Tipo Soggiorno",  pratica.get("Tipo Soggiorno")),
+            ("Motivo Soggiorno",pratica.get("Motivo Soggiorno")),
+            ("Scadenza Rinnovo",pratica.get("Scadenza Rinnovo")),
+            ("Comune",          pratica.get("Comune")),
+            ("Indirizzo",       pratica.get("Indirizzo")),
+        ]
+        g = ctk.CTkFrame(ana, fg_color="transparent")
+        g.pack(fill="x", padx=14, pady=(0,12))
+        g.columnconfigure(1, weight=1); g.columnconfigure(3, weight=1)
+        for i,(lbl,val) in enumerate(campi):
+            r,cl = i//2,(i%2)*2
+            ctk.CTkLabel(g, text=lbl, font=ctk.CTkFont(size=FS(-2)),
+                         text_color=T_["testo_light"]
+                         ).grid(row=r, column=cl, sticky="nw", padx=(0,6), pady=2)
+            e = ctk.CTkEntry(g, font=ctk.CTkFont(size=FS()),
+                             fg_color="transparent", border_width=0,
+                             text_color=T_["testo"])
+            e.insert(0, str(val or "—"))
+            e.configure(state="readonly")
+            e.grid(row=r, column=cl+1, sticky="ew", pady=2, padx=(0,16))
+
+        # Note
+        if att.get("Note Personali"):
+            nc = ctk.CTkFrame(scroll, fg_color=T_["card"], corner_radius=10,
+                              border_color=T_["bordo"], border_width=1)
+            nc.pack(fill="x", pady=(0,8))
+            ctk.CTkLabel(nc, text="📝  Note",
+                         font=ctk.CTkFont(size=11, weight="bold"),
+                         text_color=T_["blu_scuro"]).pack(anchor="w", padx=14, pady=(10,4))
+            ctk.CTkLabel(nc, text=str(att.get("Note Personali","")),
+                         font=ctk.CTkFont(size=FS()), text_color=T_["testo"],
+                         wraplength=580, justify="left"
+                         ).pack(anchor="w", padx=14, pady=(0,12))
+
+
+# ─────────────────────────────────────────────
 #  VISTA SCHEDA
 # ─────────────────────────────────────────────
 class VistaScheda(ctk.CTkFrame):
@@ -895,6 +1095,8 @@ class VistaScheda(ctk.CTkFrame):
         self._vai_lista = vai_lista
         self._nr = None; self._stato_var = None; self._stato_menu = None
         self._pratica_corrente = None; self._att_corrente = None
+        self._appuntamento_var = None
+        self._finestra_trainante = None
         self._build()
 
     def _build(self):
@@ -912,13 +1114,27 @@ class VistaScheda(ctk.CTkFrame):
                                            text_color=T_["testo"])
         self.lbl_breadcrumb.pack(side="left")
 
-        # Bottone PDF
-        ctk.CTkButton(nav, text="🖨  Stampa PDF",
-                      command=self._stampa_pdf,
-                      fg_color=T_["arancio"], hover_color="#C2410C",
-                      height=28, corner_radius=8,
-                      font=ctk.CTkFont(size=FS())
-                      ).pack(side="right", padx=8)
+        # Campo data appuntamento (a destra nella nav)
+        ctk.CTkLabel(nav, text="📅 Appuntamento:",
+                     font=ctk.CTkFont(size=FS()),
+                     text_color=T_["testo_light"]).pack(side="right", padx=(0,4))
+        self._appuntamento_var = ctk.StringVar(value="")
+        self._appuntamento_entry = ctk.CTkEntry(nav,
+                                                textvariable=self._appuntamento_var,
+                                                placeholder_text="GG/MM/AAAA",
+                                                fg_color=T_["sfondo"],
+                                                border_color=T_["bordo"],
+                                                height=28, width=110,
+                                                corner_radius=6,
+                                                font=ctk.CTkFont(size=FS()))
+        self._appuntamento_entry.pack(side="right", padx=(0,4))
+        ctk.CTkButton(nav, text="💾",
+                      command=self._salva_appuntamento,
+                      fg_color=T_["verde"], hover_color=T_["verde_dark"],
+                      width=30, height=28, corner_radius=6,
+                      font=ctk.CTkFont(size=11)).pack(side="right", padx=(0,8))
+
+
 
         self._corpo = ctk.CTkFrame(self, fg_color=T_["sfondo"], corner_radius=0)
         self._corpo.pack(fill="both", expand=True)
@@ -943,12 +1159,46 @@ class VistaScheda(ctk.CTkFrame):
         self._att_corrente     = att
         nome = f"{pratica.get('Cognome','')} {pratica.get('Nome','')}".strip()
         self.lbl_breadcrumb.configure(text=f"{nr}  —  {nome}")
+        # Carica data appuntamento esistente
+        if self._appuntamento_var:
+            self._appuntamento_var.set(str(pratica.get("Data Appuntamento","") or ""))
         self._render_scheda(pratica, att)
         self._render_attivita(nr, att)
+
+    def _apri_trainante(self, nr_trainante: str):
+        if not nr_trainante or nr_trainante == "—":
+            return
+        # Chiudi finestra precedente se aperta
+        if self._finestra_trainante and self._finestra_trainante.winfo_exists():
+            self._finestra_trainante.destroy()
+        self._finestra_trainante = FinestraTrainante(
+            self.winfo_toplevel(), nr_trainante, self._get_path)
+
+    def _salva_appuntamento(self):
+        if not self._nr or not self._pratica_corrente:
+            return
+        data = self._appuntamento_var.get().strip()
+        # Validazione formato data
+        if data:
+            try:
+                datetime.strptime(data, "%d/%m/%Y")
+            except ValueError:
+                messagebox.showwarning("Formato errato",
+                                       "Inserisci la data nel formato GG/MM/AAAA")
+                return
+        self._pratica_corrente["Data Appuntamento"] = data
+        salva_pratica_excel(self._get_path(), self._pratica_corrente)
+        messagebox.showinfo("Salvato",
+                            f"Appuntamento salvato: {data if data else '(rimosso)'}")
 
     def aggiorna_dati(self, dati_nuovi: dict):
         """Aggiorna silenziosamente la pratica corrente senza popup."""
         if self._nr and self._nr == dati_nuovi.get("Nr. Pratica","").strip():
+            # Preserva la data appuntamento già impostata
+            if self._appuntamento_var:
+                data_app = self._appuntamento_var.get().strip()
+                if data_app:
+                    dati_nuovi["Data Appuntamento"] = data_app
             salva_pratica_excel(self._get_path(), dati_nuovi)
             self.carica(self._nr)
             return True
@@ -1122,11 +1372,26 @@ class VistaScheda(ctk.CTkFrame):
                            ("CF trainante","CF Trainante"),
                            ("Nr. pratica trainante","Nr Pratica Trainante")]:
             lbl_f(self._fam_frame, label).pack(anchor="w")
-            e = ctk.CTkEntry(self._fam_frame, fg_color=T_["sfondo"],
-                             border_color=T_["bordo"], height=28, corner_radius=6,
-                             font=ctk.CTkFont(size=FS()))
-            e.pack(fill="x", pady=(2,4))
-            e.insert(0, str(att.get(key,"") or ""))
+            if key == "Nr Pratica Trainante":
+                # Riga con entry + bottone link
+                row_t = ctk.CTkFrame(self._fam_frame, fg_color="transparent")
+                row_t.pack(fill="x", pady=(2,4))
+                e = ctk.CTkEntry(row_t, fg_color=T_["sfondo"],
+                                 border_color=T_["bordo"], height=28, corner_radius=6,
+                                 font=ctk.CTkFont(size=FS()))
+                e.pack(side="left", fill="x", expand=True, padx=(0,4))
+                e.insert(0, str(att.get(key,"") or ""))
+                ctk.CTkButton(row_t, text="🔗",
+                              command=lambda e=e: self._apri_trainante(e.get().strip()),
+                              fg_color=T_["blu_medio"], hover_color=T_["blu_scuro"],
+                              width=30, height=28, corner_radius=6,
+                              font=ctk.CTkFont(size=12)).pack(side="left")
+            else:
+                e = ctk.CTkEntry(self._fam_frame, fg_color=T_["sfondo"],
+                                 border_color=T_["bordo"], height=28, corner_radius=6,
+                                 font=ctk.CTkFont(size=FS()))
+                e.pack(fill="x", pady=(2,4))
+                e.insert(0, str(att.get(key,"") or ""))
             self._fam_fields[key] = e
         self._toggle_fam()
 
@@ -1253,13 +1518,7 @@ class App(ctk.CTk):
                       height=30, corner_radius=8,
                       font=ctk.CTkFont(size=11)).pack(side="left", padx=(0,6))
 
-        # Toggle tema
-        self._tema_btn = ctk.CTkButton(top, text="🌙",
-                      command=self._toggle_tema,
-                      fg_color=T_["blu_medio"], hover_color=T_["blu_scuro"],
-                      width=36, height=30, corner_radius=8,
-                      font=ctk.CTkFont(size=14))
-        self._tema_btn.pack(side="left", padx=(0,6))
+
 
         # Font size
         ctk.CTkButton(top, text="A-", command=self._font_down,
@@ -1292,12 +1551,6 @@ class App(ctk.CTk):
         self._vista_scheda = VistaScheda(self._container,
                                          get_path=self._excel_path.get,
                                          vai_lista=self._mostra_lista)
-
-    def _toggle_tema(self):
-        SETTINGS["tema"] = "dark" if SETTINGS.get("tema","light")=="light" else "light"
-        salva_settings(SETTINGS)
-        self._tema_btn.configure(text="☀️" if SETTINGS["tema"]=="dark" else "🌙")
-        self._ricostruisci()
 
     def _font_up(self):
         SETTINGS["font_size"] = min(16, SETTINGS.get("font_size",12)+1)
