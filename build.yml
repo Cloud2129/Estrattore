@@ -20,19 +20,41 @@ jobs:
 
       - name: Installa dipendenze
         shell: pwsh
-        run: pip install pyinstaller customtkinter openpyxl
+        run: pip install pyinstaller customtkinter openpyxl reportlab Pillow
+
+      - name: Crea icona
+        shell: pwsh
+        run: |
+          python -c "
+          from PIL import Image, ImageDraw, ImageFont
+          import struct, zlib
+
+          # Crea immagine 64x64 con iniziali
+          img = Image.new('RGBA', (64,64), (31,78,121,255))
+          draw = ImageDraw.Draw(img)
+          draw.ellipse([4,4,60,60], fill=(46,117,182,255))
+          draw.text((32,32), 'EP', fill='white', anchor='mm')
+
+          # Salva come ICO
+          img_32 = img.resize((32,32))
+          img_16 = img.resize((16,16))
+          img.save('icon.ico', format='ICO', sizes=[(64,64),(32,32),(16,16)])
+          print('Icona creata')
+          "
 
       - name: Build exe
         shell: pwsh
         run: |
           pyinstaller --noconfirm --onedir --windowed --name "Pratiche" `
+            --icon icon.ico `
             --collect-all customtkinter `
             --hidden-import openpyxl `
+            --hidden-import reportlab `
+            --collect-all reportlab `
             --exclude-module selenium `
             --exclude-module matplotlib `
             --exclude-module numpy `
             --exclude-module pandas `
-            --exclude-module PIL `
             --exclude-module scipy `
             pratiche.py
 
@@ -46,12 +68,20 @@ jobs:
           tag_name: build-${{ github.run_number }}
           name: "Build #${{ github.run_number }}"
           body: |
-            Pratiche Immigrazione — build automatico
+            **Estrattore Pratiche by Jurij** — build automatico
+
+            **Novità:**
+            - Tema chiaro/scuro (🌙 in topbar)
+            - Font regolabile (A+ / A-)
+            - Splash screen all'avvio
+            - Stampa PDF scheda pratica
+            - Avviso scadenze all'apertura
+            - Aggiornamento automatico pratica aperta
 
             **Come installare:**
             1. Scarica e decomprimi `Pratiche_Immigrazione.zip`
             2. Avvia `Pratiche.exe`
-            3. Clicca **📎 Bookmarklet** per configurare il pulsante nel browser
+            3. Clicca **📎 Bookmark** per configurare il pulsante nel browser
           files: Pratiche_Immigrazione.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
