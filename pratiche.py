@@ -1134,6 +1134,7 @@ class App(ctk.CTk):
         self.geometry("1200x740")
         self.minsize(900, 580)
         self._excel_path = ctk.StringVar(value=EXCEL_PATH_DEFAULT)
+        self._driver_globale = GestionaleDriver()
         self._build()
         # Mostra lista all'avvio
         self._mostra_lista()
@@ -1164,6 +1165,15 @@ class App(ctk.CTk):
                      font=ctk.CTkFont(size=11),
                      text_color="#93C5FD").pack(side="right", padx=14)
 
+        # Bottoni estrazione sempre visibili nella topbar
+        self._barra_globale = _BarraEstrazioneInline(
+            top,
+            get_path=self._excel_path.get,
+            on_salvata=self._dopo_estrazione,
+            driver=self._driver_globale
+        )
+        self._barra_globale.pack(side="right", padx=(0,8))
+
         # ── Contenitore viste ──
         self._container = ctk.CTkFrame(self, fg_color=THEME["sfondo"], corner_radius=0)
         self._container.pack(fill="both", expand=True)
@@ -1181,6 +1191,11 @@ class App(ctk.CTk):
             get_path=self._excel_path.get,
             vai_lista=self._mostra_lista
         )
+
+    def _dopo_estrazione(self, nr: str):
+        """Dopo estrazione: aggiorna lista e apre la pratica."""
+        self._mostra_lista()
+        self.after(300, lambda: self._apri_pratica(nr))
 
     def _mostra_lista(self):
         self._vista_scheda.pack_forget()
@@ -1200,6 +1215,7 @@ class App(ctk.CTk):
 
     def _on_close(self):
         self._vista_scheda.quit_driver()
+        self._driver_globale.quit()
         self.destroy()
 
 
