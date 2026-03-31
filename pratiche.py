@@ -231,6 +231,13 @@ class GestionaleDriver:
         except Exception:
             return False
 
+    def naviga(self, url: str):
+        if self.driver:
+            try:
+                self.driver.get(url)
+            except Exception:
+                pass
+
     def _vt(self, title):
         try:
             el = self.driver.find_element(
@@ -1053,6 +1060,28 @@ class _BarraEstrazioneInline(ctk.CTkFrame):
                                       font=ctk.CTkFont(size=11))
         self.btn_apri.pack(side="left", padx=(0,6))
 
+        # Barra URL
+        self._url_var = ctk.StringVar(value=GESTIONALE_URL)
+        self._url_entry = ctk.CTkEntry(self, textvariable=self._url_var,
+                                       fg_color="#1a3f63",
+                                       border_color=THEME["blu_medio"],
+                                       text_color="white",
+                                       placeholder_text="Inserisci URL...",
+                                       height=30, width=320, corner_radius=6,
+                                       font=ctk.CTkFont(size=10),
+                                       state="disabled")
+        self._url_entry.pack(side="left", padx=(0,4))
+        self._url_entry.bind("<Return>", lambda e: self._vai_url())
+
+        self.btn_vai = ctk.CTkButton(self, text="↵ Vai",
+                                     command=self._vai_url,
+                                     fg_color=THEME["blu_medio"],
+                                     hover_color=THEME["blu_scuro"],
+                                     corner_radius=6, height=30, width=56,
+                                     font=ctk.CTkFont(size=11),
+                                     state="disabled")
+        self.btn_vai.pack(side="left", padx=(0,8))
+
         self.btn_estrai = ctk.CTkButton(self, text="⚡  Estrai",
                                         command=self._estrai,
                                         fg_color=THEME["arancio"],
@@ -1079,6 +1108,8 @@ class _BarraEstrazioneInline(ctk.CTkFrame):
                                     fg_color="#94A3B8", hover_color="#64748B",
                                     command=self._chiudi, state="normal")
             self.btn_estrai.configure(state="normal")
+            self._url_entry.configure(state="normal")
+            self.btn_vai.configure(state="normal")
         else:
             self.btn_apri.configure(state="normal", text="🌐  Browser",
                                     fg_color=THEME["blu_medio"])
@@ -1091,6 +1122,18 @@ class _BarraEstrazioneInline(ctk.CTkFrame):
                                 hover_color=THEME["blu_scuro"],
                                 command=self._apri)
         self.btn_estrai.configure(state="disabled")
+        self._url_entry.configure(state="disabled")
+        self.btn_vai.configure(state="disabled")
+
+    def _vai_url(self):
+        url = self._url_var.get().strip()
+        if not url:
+            return
+        if not url.startswith("http"):
+            url = "https://" + url
+            self._url_var.set(url)
+        if self._driver.is_aperto():
+            threading.Thread(target=lambda: self._driver.naviga(url), daemon=True).start()
 
     def _estrai(self):
         if not self._driver.is_aperto():
