@@ -33,7 +33,7 @@ except Exception:
     OPERATORE = os.environ.get("USERNAME", "OPERATORE")
 
 EXCEL_PATH_DEFAULT = f"pratiche_{OPERATORE}.xlsx"
-BROWSER_DEFAULT    = "firefox"   # "firefox" | "chrome" | "edge"
+BROWSER_DEFAULT    = "firefox"   # "firefox" | "chrome"
 
 COL_PRATICHE = [
     "Nr. Pratica", "Operatore Gestionale", "Stato Pratica",
@@ -57,10 +57,10 @@ COL_ATTIVITA = [
 ]
 
 STATI = {
-    "da_verificare": ("🟡 Da verificare", "#FEF3C7", "#F59E0B"),
-    "sospesa":       ("🟠 Sospesa",       "#FFEDD5", "#F97316"),
-    "validata":      ("🟢 Validata",      "#DCFCE7", "#22C55E"),
-    "negata":        ("🔴 Negata",        "#FEE2E2", "#EF4444"),
+    "da_verificare": ("🟡 Da verificare", "#FDE68A", "#B45309"),
+    "sospesa":       ("🟠 Sospesa",       "#FCD34D", "#C2410C"),
+    "validata":      ("🟢 Validata",      "#86EFAC", "#15803D"),
+    "negata":        ("🔴 Negata",        "#FCA5A5", "#B91C1C"),
 }
 
 SDI_ESITI    = ["", "Positivo", "Negativo", "Positivo non ostativo"]
@@ -208,7 +208,7 @@ def salva_attivita_excel(path: str, dati: dict):
 class GestionaleDriver:
     def __init__(self, browser="firefox"):
         self.driver  = None
-        self.browser = browser  # "firefox" | "chrome" | "edge"
+        self.browser = browser  # "firefox" | "chrome"
 
     def apri(self):
         try:
@@ -630,11 +630,11 @@ class VistaLista(ctk.CTkFrame):
         self.tree.bind("<Return>",   self._apri)
 
         # Tag colori riga per stato
-        self.tree.tag_configure("da_verificare", background="#FFFBEB")
-        self.tree.tag_configure("sospesa",       background="#FFF7ED")
-        self.tree.tag_configure("validata",      background="#F0FDF4")
-        self.tree.tag_configure("negata",        background="#FEF2F2")
-        self.tree.tag_configure("alt",           background="#F8FAFC")
+        self.tree.tag_configure("da_verificare", background="#FEF08A")
+        self.tree.tag_configure("sospesa",       background="#FED7AA")
+        self.tree.tag_configure("validata",      background="#BBF7D0")
+        self.tree.tag_configure("negata",        background="#FECACA")
+        self.tree.tag_configure("alt",           background="#F1F5F9")
 
         # Footer hint
         foot = ctk.CTkFrame(self, fg_color=THEME["card"],
@@ -1191,7 +1191,7 @@ class _BarraEstrazioneInline(ctk.CTkFrame):
         # Selettore browser
         self._browser_menu = ctk.CTkOptionMenu(
             self, variable=self._browser_var,
-            values=["firefox", "edge", "chrome"],
+            values=["firefox", "chrome"],
             fg_color="#1a3f63", button_color=THEME["blu_medio"],
             text_color="white", font=ctk.CTkFont(size=10),
             width=85, height=30, corner_radius=6,
@@ -1205,28 +1205,6 @@ class _BarraEstrazioneInline(ctk.CTkFrame):
                                       corner_radius=8, height=30, width=110,
                                       font=ctk.CTkFont(size=11))
         self.btn_apri.pack(side="left", padx=(0,6))
-
-        # Barra URL
-        self._url_var = ctk.StringVar(value=GESTIONALE_URL)
-        self._url_entry = ctk.CTkEntry(self, textvariable=self._url_var,
-                                       fg_color="#1a3f63",
-                                       border_color=THEME["blu_medio"],
-                                       text_color="white",
-                                       placeholder_text="Inserisci URL...",
-                                       height=30, width=320, corner_radius=6,
-                                       font=ctk.CTkFont(size=10),
-                                       state="disabled")
-        self._url_entry.pack(side="left", padx=(0,4))
-        self._url_entry.bind("<Return>", lambda e: self._vai_url())
-
-        self.btn_vai = ctk.CTkButton(self, text="↵ Vai",
-                                     command=self._vai_url,
-                                     fg_color=THEME["blu_medio"],
-                                     hover_color=THEME["blu_scuro"],
-                                     corner_radius=6, height=30, width=56,
-                                     font=ctk.CTkFont(size=11),
-                                     state="disabled")
-        self.btn_vai.pack(side="left", padx=(0,8))
 
         self.btn_estrai = ctk.CTkButton(self, text="⚡  Estrai",
                                         command=self._estrai,
@@ -1259,8 +1237,6 @@ class _BarraEstrazioneInline(ctk.CTkFrame):
                                     fg_color="#94A3B8", hover_color="#64748B",
                                     command=self._chiudi, state="normal")
             self.btn_estrai.configure(state="normal")
-            self._url_entry.configure(state="normal")
-            self.btn_vai.configure(state="normal")
             self._browser_menu.configure(state="disabled")
         else:
             self.btn_apri.configure(state="normal", text="🌐  Browser",
@@ -1277,19 +1253,7 @@ class _BarraEstrazioneInline(ctk.CTkFrame):
                                 hover_color=THEME["blu_scuro"],
                                 command=self._apri)
         self.btn_estrai.configure(state="disabled")
-        self._url_entry.configure(state="disabled")
-        self.btn_vai.configure(state="disabled")
         self._browser_menu.configure(state="normal")
-
-    def _vai_url(self):
-        url = self._url_var.get().strip()
-        if not url:
-            return
-        if not url.startswith("http"):
-            url = "https://" + url
-            self._url_var.set(url)
-        if self._driver.is_aperto():
-            threading.Thread(target=lambda: self._driver.naviga(url), daemon=True).start()
 
     def _estrai(self):
         if not self._driver.is_aperto():
