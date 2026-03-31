@@ -20,43 +20,27 @@ jobs:
 
       - name: Installa dipendenze
         shell: pwsh
-        run: pip install pyinstaller customtkinter selenium openpyxl webdriver-manager
+        run: pip install pyinstaller customtkinter openpyxl
 
-      - name: Build exe con PyInstaller
+      - name: Build exe
         shell: pwsh
         run: |
           pyinstaller --noconfirm --onedir --windowed --name "Pratiche" `
             --collect-all customtkinter `
-            --collect-all selenium `
-            --collect-all webdriver_manager `
-            --hidden-import selenium.webdriver.firefox.webdriver `
-            --hidden-import selenium.webdriver.firefox.service `
-            --hidden-import selenium.webdriver.chrome.webdriver `
-            --hidden-import selenium.webdriver.chrome.service `
-            --hidden-import selenium.webdriver.edge.webdriver `
-            --hidden-import selenium.webdriver.edge.service `
-            --hidden-import selenium.webdriver.common.by `
-            --hidden-import webdriver_manager.chrome `
-            --hidden-import webdriver_manager.microsoft `
-            --hidden-import webdriver_manager.firefox `
             --hidden-import openpyxl `
+            --exclude-module selenium `
             --exclude-module matplotlib `
             --exclude-module numpy `
             --exclude-module pandas `
             --exclude-module PIL `
             --exclude-module scipy `
-            --exclude-module unittest `
-            --exclude-module email `
-            --exclude-module html `
-            --exclude-module http `
-            --exclude-module xmlrpc `
             pratiche.py
 
-      - name: Crea archivio ZIP
+      - name: Crea ZIP
         shell: pwsh
         run: Compress-Archive -Path dist\Pratiche\* -DestinationPath Pratiche_Immigrazione.zip
 
-      - name: Pubblica come Release
+      - name: Pubblica Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
@@ -65,11 +49,9 @@ jobs:
             Pratiche Immigrazione — build automatico
 
             **Come installare:**
-            1. Scarica e decomprimi `Pratiche_Immigrazione.zip` in una cartella
-            2. Avvia `Pratiche.exe` dalla cartella decompressa
-
-            **Browser supportati:** Firefox, Chrome
-            I driver vengono scaricati automaticamente al primo avvio del browser.
+            1. Scarica e decomprimi `Pratiche_Immigrazione.zip`
+            2. Avvia `Pratiche.exe`
+            3. Clicca **📎 Bookmarklet** per configurare il pulsante nel browser
           files: Pratiche_Immigrazione.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
