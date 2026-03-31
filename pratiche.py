@@ -33,7 +33,7 @@ except Exception:
     OPERATORE = os.environ.get("USERNAME", "OPERATORE")
 
 EXCEL_PATH_DEFAULT = f"pratiche_{OPERATORE}.xlsx"
-BROWSER_DEFAULT    = "edge"   # "firefox" | "chrome" | "edge"
+BROWSER_DEFAULT    = "firefox"   # "firefox" | "chrome" | "edge"
 
 COL_PRATICHE = [
     "Nr. Pratica", "Operatore Gestionale", "Stato Pratica",
@@ -211,25 +211,46 @@ class GestionaleDriver:
         self.browser = browser  # "firefox" | "chrome" | "edge"
 
     def apri(self):
-        if self.browser == "chrome":
-            from selenium.webdriver.chrome.options import Options as COptions
-            from selenium.webdriver import Chrome
-            opts = COptions()
-            self.driver = Chrome(options=opts)
-        elif self.browser == "edge":
-            from selenium.webdriver.edge.options import Options as EOptions
-            from selenium.webdriver import Edge
-            opts = EOptions()
-            self.driver = Edge(options=opts)
-        else:
-            from selenium.webdriver.firefox.options import Options as FOptions
-            from selenium.webdriver import Firefox
-            opts = FOptions()
-            self.driver = Firefox(options=opts)
         try:
-            self.driver.get(GESTIONALE_URL)
-        except Exception:
-            pass
+            if self.browser == "chrome":
+                from selenium.webdriver.chrome.options import Options as COptions
+                from selenium.webdriver import Chrome
+                from selenium.webdriver.chrome.service import Service as CService
+                try:
+                    from webdriver_manager.chrome import ChromeDriverManager
+                    svc = CService(ChromeDriverManager().install())
+                    self.driver = Chrome(service=svc, options=COptions())
+                except Exception:
+                    self.driver = Chrome(options=COptions())
+
+            elif self.browser == "edge":
+                from selenium.webdriver.edge.options import Options as EOptions
+                from selenium.webdriver import Edge
+                from selenium.webdriver.edge.service import Service as EService
+                try:
+                    from webdriver_manager.microsoft import EdgeChromiumDriverManager
+                    svc = EService(EdgeChromiumDriverManager().install())
+                    self.driver = Edge(service=svc, options=EOptions())
+                except Exception:
+                    self.driver = Edge(options=EOptions())
+
+            else:  # firefox
+                from selenium.webdriver.firefox.options import Options as FOptions
+                from selenium.webdriver import Firefox
+                from selenium.webdriver.firefox.service import Service as FService
+                try:
+                    from webdriver_manager.firefox import GeckoDriverManager
+                    svc = FService(GeckoDriverManager().install())
+                    self.driver = Firefox(service=svc, options=FOptions())
+                except Exception:
+                    self.driver = Firefox(options=FOptions())
+
+            try:
+                self.driver.get(GESTIONALE_URL)
+            except Exception:
+                pass
+        except Exception as e:
+            raise Exception(f"Impossibile aprire {self.browser}:\n{e}")
 
     def quit(self):
         if self.driver:
@@ -1170,7 +1191,7 @@ class _BarraEstrazioneInline(ctk.CTkFrame):
         # Selettore browser
         self._browser_menu = ctk.CTkOptionMenu(
             self, variable=self._browser_var,
-            values=["firefox", "chrome", "edge"],
+            values=["firefox", "edge", "chrome"],
             fg_color="#1a3f63", button_color=THEME["blu_medio"],
             text_color="white", font=ctk.CTkFont(size=10),
             width=85, height=30, corner_radius=6,
