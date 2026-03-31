@@ -32,15 +32,15 @@ jobs:
 
       - name: Build exe con PyInstaller
         shell: pwsh
-        run: pyinstaller --noconfirm --onefile --windowed --name "Pratiche" --collect-all customtkinter --collect-all selenium --hidden-import selenium.webdriver.firefox.webdriver --hidden-import selenium.webdriver.firefox.options --hidden-import selenium.webdriver.common.by --hidden-import openpyxl pratiche.py
+        run: pyinstaller --noconfirm --onedir --windowed --name "Pratiche" --collect-all customtkinter --collect-all selenium --hidden-import selenium.webdriver.firefox.webdriver --hidden-import selenium.webdriver.firefox.options --hidden-import selenium.webdriver.common.by --hidden-import openpyxl pratiche.py
 
-      - name: Copia geckodriver nella cartella dist
+      - name: Copia geckodriver nella cartella dist/Pratiche
         shell: pwsh
-        run: Copy-Item geckodriver.exe dist\
+        run: Copy-Item geckodriver.exe dist\Pratiche\
 
       - name: Crea archivio ZIP
         shell: pwsh
-        run: Compress-Archive -Path dist\Pratiche.exe, dist\geckodriver.exe -DestinationPath Pratiche_Immigrazione.zip
+        run: Compress-Archive -Path dist\Pratiche\* -DestinationPath Pratiche_Immigrazione.zip
 
       - name: Pubblica come Release
         uses: softprops/action-gh-release@v2
@@ -49,6 +49,10 @@ jobs:
           name: "Build #${{ github.run_number }}"
           body: |
             Pratiche Immigrazione — build automatico
+
+            **Come installare:**
+            1. Scarica e decomprimi `Pratiche_Immigrazione.zip` in una cartella
+            2. Avvia `Pratiche.exe` dalla cartella decompressa
           files: Pratiche_Immigrazione.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
