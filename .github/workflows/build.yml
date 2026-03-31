@@ -1,1 +1,75 @@
+name: Build Pratiche.exe
 
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:   # permette di avviare manualmente dalla pagina GitHub
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Installa dipendenze
+        run: |
+          pip install pyinstaller customtkinter selenium openpyxl
+
+      - name: Scarica geckodriver
+        shell: pwsh
+        run: |
+          $url = "https://github.com/mozilla/geckodriver/releases/download/v0.34.0/geckodriver-v0.34.0-win64.zip"
+          Invoke-WebRequest -Uri $url -OutFile geckodriver.zip
+          Expand-Archive -Path geckodriver.zip -DestinationPath .
+          Remove-Item geckodriver.zip
+
+      - name: Build exe con PyInstaller
+        run: |
+          pyinstaller --noconfirm ^
+            --onefile --windowed ^
+            --name "Pratiche" ^
+            --collect-all customtkinter ^
+            --collect-all selenium ^
+            --hidden-import selenium.webdriver.firefox.webdriver ^
+            --hidden-import selenium.webdriver.firefox.options ^
+            --hidden-import selenium.webdriver.common.by ^
+            --hidden-import openpyxl ^
+            pratiche.py
+        shell: cmd
+
+      - name: Copia geckodriver nella cartella dist
+        shell: pwsh
+        run: |
+          Copy-Item geckodriver.exe dist\
+
+      - name: Crea archivio ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist\Pratiche.exe, dist\geckodriver.exe -DestinationPath Pratiche_Immigrazione.zip
+
+      - name: Pubblica come Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "Build #${{ github.run_number }}"
+          body: |
+            Build automatico dal commit ${{ github.sha }}
+
+            **Contenuto del pacchetto:**
+            - `Pratiche.exe` — applicazione principale
+            - `geckodriver.exe` — driver Firefox per l'estrazione
+
+            **Istruzioni:**
+            1. Scarica e decomprimi `Pratiche_Immigrazione.zip`
+            2. Metti entrambi i file nella stessa cartella
+            3. Avvia `Pratiche.exe`
+          files: Pratiche_Immigrazione.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
