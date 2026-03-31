@@ -1,0 +1,17 @@
+# Build
+dist/
+build/
+*.spec
+
+# Excel personali
+pratiche_*.xlsx
+attivita.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Sistema
+.DS_Store
+Thumbs.db
