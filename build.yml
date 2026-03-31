@@ -20,23 +20,36 @@ jobs:
 
       - name: Installa dipendenze
         shell: pwsh
-        run: pip install pyinstaller customtkinter selenium openpyxl
-
-      - name: Scarica geckodriver
-        shell: pwsh
-        run: |
-          $url = "https://github.com/mozilla/geckodriver/releases/download/v0.34.0/geckodriver-v0.34.0-win64.zip"
-          Invoke-WebRequest -Uri $url -OutFile geckodriver.zip
-          Expand-Archive -Path geckodriver.zip -DestinationPath .
-          Remove-Item geckodriver.zip
+        run: pip install pyinstaller customtkinter selenium openpyxl webdriver-manager
 
       - name: Build exe con PyInstaller
         shell: pwsh
-        run: pyinstaller --noconfirm --onedir --windowed --name "Pratiche" --collect-all customtkinter --collect-all selenium --hidden-import selenium.webdriver.firefox.webdriver --hidden-import selenium.webdriver.firefox.options --hidden-import selenium.webdriver.common.by --hidden-import openpyxl pratiche.py
-
-      - name: Copia geckodriver nella cartella dist/Pratiche
-        shell: pwsh
-        run: Copy-Item geckodriver.exe dist\Pratiche\
+        run: |
+          pyinstaller --noconfirm --onedir --windowed --name "Pratiche" `
+            --collect-all customtkinter `
+            --collect-all selenium `
+            --collect-all webdriver_manager `
+            --hidden-import selenium.webdriver.firefox.webdriver `
+            --hidden-import selenium.webdriver.firefox.options `
+            --hidden-import selenium.webdriver.firefox.service `
+            --hidden-import selenium.webdriver.chrome.webdriver `
+            --hidden-import selenium.webdriver.chrome.options `
+            --hidden-import selenium.webdriver.chrome.service `
+            --hidden-import selenium.webdriver.edge.webdriver `
+            --hidden-import selenium.webdriver.edge.options `
+            --hidden-import selenium.webdriver.edge.service `
+            --hidden-import selenium.webdriver.common.by `
+            --hidden-import webdriver_manager.chrome `
+            --hidden-import webdriver_manager.microsoft `
+            --hidden-import webdriver_manager.firefox `
+            --hidden-import openpyxl `
+            --exclude-module matplotlib `
+            --exclude-module numpy `
+            --exclude-module pandas `
+            --exclude-module PIL `
+            --exclude-module scipy `
+            --exclude-module tkinter.test `
+            pratiche.py
 
       - name: Crea archivio ZIP
         shell: pwsh
@@ -53,6 +66,9 @@ jobs:
             **Come installare:**
             1. Scarica e decomprimi `Pratiche_Immigrazione.zip` in una cartella
             2. Avvia `Pratiche.exe` dalla cartella decompressa
+
+            **Browser supportati:** Edge, Chrome, Firefox
+            I driver vengono scaricati automaticamente al primo avvio.
           files: Pratiche_Immigrazione.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
