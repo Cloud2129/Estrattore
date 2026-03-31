@@ -48,16 +48,7 @@ jobs:
           tag_name: build-${{ github.run_number }}
           name: "Build #${{ github.run_number }}"
           body: |
-            Build automatico dal commit ${{ github.sha }}
-
-            **Contenuto del pacchetto:**
-            - `Pratiche.exe` — applicazione principale
-            - `geckodriver.exe` — driver Firefox per l'estrazione
-
-            **Istruzioni:**
-            1. Scarica e decomprimi `Pratiche_Immigrazione.zip`
-            2. Metti entrambi i file nella stessa cartella
-            3. Avvia `Pratiche.exe`
+            Pratiche Immigrazione — build automatico
           files: Pratiche_Immigrazione.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
